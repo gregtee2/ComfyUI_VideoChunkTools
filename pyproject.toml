@@ -1,0 +1,9 @@
+[project]
+name = "ComfyUI_VideoChunkTools"
+version = "1.0.0"
+description = "ComfyUI nodes for generating long videos by splitting into overlapping chunks with rolling reference frames."
+license = {text = "MIT"}
+requires-python = ">=3.10"
+
+[project.urls]
+Repository = "https://github.com/gregtee2/ComfyUI_VideoChunkTools"

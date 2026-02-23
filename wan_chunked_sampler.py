@@ -282,7 +282,13 @@ class WanChunkedI2VSampler:
                     "tooltip": "Two-pass only: CFG for the second pass (model_b). Ignored in single-pass."
                 }),
                 "text_embeds": ("WANVIDEOTEXTEMBEDS", {
-                    "tooltip": "Text conditioning from WanVideoTextEncode."
+                    "tooltip": "Text conditioning from WanVideoTextEncode. Applied to ALL chunks uniformly."
+                }),
+                "text_embed_sequence": ("TEXT_EMBED_SEQUENCE", {
+                    "tooltip": "Per-chunk text conditioning from ChainTextEmbeds. "
+                               "Chunk 1 gets embed_1, chunk 2 gets embed_2, etc. "
+                               "Last embed repeats for extra chunks. "
+                               "Overrides text_embeds when connected."
                 }),
                 "clip_embeds": ("WANVIDIMAGE_CLIPEMBEDS", {
                     "tooltip": "Optional CLIP vision embeddings from WanVideoClipVisionEncode."
@@ -374,6 +380,7 @@ class WanChunkedI2VSampler:
         split_step=4,
         cfg_b=1.0,
         text_embeds=None,
+        text_embed_sequence=None,
         clip_embeds=None,
         feta_args=None,
         context_options=None,
@@ -468,6 +475,12 @@ class WanChunkedI2VSampler:
             print(f"  End Lat Strength : {end_latent_strength}")
         else:
             print(f"  FLF Mode         : OFF")
+        if text_embed_sequence is not None:
+            print(f"  Text Embeds      : PER-CHUNK sequence ({len(text_embed_sequence)} embeds for {num_chunks} chunks)")
+        elif text_embeds is not None:
+            print(f"  Text Embeds      : Single (same for all chunks)")
+        else:
+            print(f"  Text Embeds      : None")
         print(f"{'=' * 65}\n")
 
         # ── Progress bar (chunk-level) ──
@@ -485,6 +498,15 @@ class WanChunkedI2VSampler:
 
             chunk_label = f"Chunk {chunk_idx + 1}/{num_chunks}"
             print(f"\n  ── {chunk_label} ──")
+
+            # ── Resolve per-chunk text conditioning ──
+            if text_embed_sequence is not None:
+                embed_idx = min(chunk_idx, len(text_embed_sequence) - 1)
+                chunk_text_embeds = text_embed_sequence[embed_idx]
+                if len(text_embed_sequence) > 1:
+                    print(f"    Text embed     : #{embed_idx + 1} of {len(text_embed_sequence)}")
+            else:
+                chunk_text_embeds = text_embeds
 
             # ============================================================
             # Step 1 — ENCODE  reference image → image_embeds
@@ -542,7 +564,7 @@ class WanChunkedI2VSampler:
                     force_offload=force_offload,
                     scheduler=scheduler,
                     riflex_freq_index=riflex_freq_index,
-                    text_embeds=text_embeds,
+                    text_embeds=chunk_text_embeds,
                     feta_args=feta_args,
                     context_options=context_options,
                     start_step=0,
@@ -561,7 +583,7 @@ class WanChunkedI2VSampler:
                     force_offload=force_offload,
                     scheduler=scheduler,
                     riflex_freq_index=riflex_freq_index,
-                    text_embeds=text_embeds,
+                    text_embeds=chunk_text_embeds,
                     samples=high_latent,
                     feta_args=feta_args,
                     context_options=None,
@@ -584,7 +606,7 @@ class WanChunkedI2VSampler:
                     force_offload=force_offload,
                     scheduler=scheduler,
                     riflex_freq_index=riflex_freq_index,
-                    text_embeds=text_embeds,
+                    text_embeds=chunk_text_embeds,
                     feta_args=feta_args,
                     context_options=context_options,
                     add_noise_to_samples=False,

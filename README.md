@@ -1,8 +1,10 @@
 # ComfyUI VideoChunkTools
 
-**9 utility nodes for generating long videos in ComfyUI by splitting them into overlapping chunks with rolling reference frames.**
+**10 utility nodes for generating long videos in ComfyUI by splitting them into overlapping chunks with rolling reference frames.**
 
 Designed to solve the **"context window reversal" problem** — where video generation models (Wan 2.1/2.2, FantasyPortrait, etc.) revert to the starting state after ~135 frames because the reference image embedding pulls the generation back.
+
+Now with **per-chunk text prompting** — change the narrative as your video progresses.
 
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom_Nodes-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -44,8 +46,14 @@ Final:   Concatenate all chunks → 240+ frame seamless video
 
 | Node | Purpose |
 |------|---------|
-| **Wan Chunked I2V Sampler ♾️** | All-in-one node: encode→sample→decode→extract ref→repeat. Handles everything internally. |
+| **Wan Chunked I2V Sampler ♾️** | All-in-one node: encode→sample→decode→extract ref→repeat. Supports per-chunk text prompting. |
 | **Wan Chunk Calculator 🧮** | Calculate exact total_frames for N chunks with 4n+1 normalization |
+
+### Text Conditioning Node (1 node — for per-chunk prompting)
+
+| Node | Purpose |
+|------|---------|
+| **Chain Text Embeds 🔗** | Chain multiple WanVideoTextEncode outputs into an ordered sequence for per-chunk text conditioning |
 
 > The Wan nodes gracefully degrade — if WanVideoWrapper isn't installed, the 7 core nodes still load and work fine.
 
@@ -101,6 +109,27 @@ The **Wan Chunked I2V Sampler** handles everything in a single node:
 - **Multi-keyframe FLF** — provide a batch of end images to distribute across chunks
 - **Crossfade overlap** — set `end_blend_chunks` for smooth FLF transitions
 - **Auto 4n+1 normalization** — chunk sizes are automatically adjusted for Wan's requirements
+- **Per-chunk text prompts** — connect a `ChainTextEmbeds` node to change the text conditioning per-chunk
+
+### Per-Chunk Text Prompting (Wan Models)
+
+Change the narrative as your video progresses — each chunk can have its own text prompt:
+
+1. Add multiple **WanVideoTextEncode** nodes, each with a different prompt
+2. Connect them to a **Chain Text Embeds 🔗** node (`embed_1`, `embed_2`, `embed_3`, ...)
+3. Connect the `embed_sequence` output to the sampler's `text_embed_sequence` input
+4. Chunk 1 uses embed_1, chunk 2 uses embed_2, etc.
+5. If you have fewer prompts than chunks, the last prompt repeats for remaining chunks
+
+```
+[WanVideoTextEncode: "A cat sleeps on a sofa"]──┐
+[WanVideoTextEncode: "The cat wakes up"]─────────┼──▶ [Chain Text Embeds 🔗]──▶ text_embed_sequence
+[WanVideoTextEncode: "The cat jumps off"]────────┘
+                                                              │
+[Wan Model + VAE + Image]──────────────────────────▶ [Wan Chunked I2V Sampler ♾️]
+```
+
+> **Tip**: You can still use the single `text_embeds` input if you want the same prompt for all chunks. The sequence input takes priority when connected.
 
 ---
 
@@ -179,6 +208,21 @@ All-in-one node for Wan I2V models. See the [Workflows](#all-in-one-wan-models) 
 ### Wan Chunk Calculator 🧮
 
 Simple math: calculates `total_frames = chunk_frames + (num_chunks - 1) * (chunk_frames - 1)` with 4n+1 normalization.
+
+### Chain Text Embeds 🔗
+
+Chains up to 8 pre-encoded text embeddings into an ordered sequence for per-chunk text conditioning.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| embed_1 | WANVIDEOTEXTEMBEDS | Yes | Text embedding for chunk 1 |
+| embed_2–embed_8 | WANVIDEOTEXTEMBEDS | No | Text embeddings for chunks 2–8 |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| embed_sequence | TEXT_EMBED_SEQUENCE | Ordered list of embeddings — connect to sampler's `text_embed_sequence` input |
+
+If you have fewer embeds than chunks, the last embed repeats for all remaining chunks. Non-connected slots are skipped (embed_1 + embed_3 = 2-entry sequence).
 
 ---
 

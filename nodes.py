@@ -612,6 +612,77 @@ class ConcatVideoChunks:
         return (result, result.shape[0],)
 
 
+class ChainTextEmbeds:
+    """
+    Chains multiple pre-encoded text embeddings into an ordered sequence
+    for per-chunk text conditioning in WanChunkedI2VSampler.
+
+    Wire one WanVideoTextEncode output into each embed slot.
+    Chunk 1 uses embed_1, chunk 2 uses embed_2, and so on.
+    If you have fewer embeds than chunks, the last embed repeats
+    for all remaining chunks.
+
+    Example (3 chunks, 2 prompts):
+      embed_1 = encode("A cat sleeps on a sofa")
+      embed_2 = encode("The cat wakes up and stretches")
+      → Chunk 1 gets embed_1, chunks 2-3 get embed_2
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "embed_1": ("WANVIDEOTEXTEMBEDS", {
+                    "tooltip": "Text embedding for chunk 1 (required)."
+                }),
+            },
+            "optional": {
+                "embed_2": ("WANVIDEOTEXTEMBEDS", {
+                    "tooltip": "Text embedding for chunk 2."
+                }),
+                "embed_3": ("WANVIDEOTEXTEMBEDS", {
+                    "tooltip": "Text embedding for chunk 3."
+                }),
+                "embed_4": ("WANVIDEOTEXTEMBEDS", {
+                    "tooltip": "Text embedding for chunk 4."
+                }),
+                "embed_5": ("WANVIDEOTEXTEMBEDS", {
+                    "tooltip": "Text embedding for chunk 5."
+                }),
+                "embed_6": ("WANVIDEOTEXTEMBEDS", {
+                    "tooltip": "Text embedding for chunk 6."
+                }),
+                "embed_7": ("WANVIDEOTEXTEMBEDS", {
+                    "tooltip": "Text embedding for chunk 7."
+                }),
+                "embed_8": ("WANVIDEOTEXTEMBEDS", {
+                    "tooltip": "Text embedding for chunk 8."
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("TEXT_EMBED_SEQUENCE",)
+    RETURN_NAMES = ("embed_sequence",)
+    FUNCTION = "chain"
+    CATEGORY = "VideoChunkTools"
+    DESCRIPTION = (
+        "Chains multiple WanVideoTextEncode outputs into an ordered "
+        "sequence for per-chunk text conditioning.\n\n"
+        "Connect the output to the 'text_embed_sequence' input of "
+        "WanChunkedI2VSampler. If fewer embeds than chunks, the last "
+        "embed repeats for all remaining chunks."
+    )
+
+    def chain(self, embed_1, embed_2=None, embed_3=None, embed_4=None,
+              embed_5=None, embed_6=None, embed_7=None, embed_8=None):
+        sequence = [embed_1]
+        for e in [embed_2, embed_3, embed_4, embed_5,
+                  embed_6, embed_7, embed_8]:
+            if e is not None:
+                sequence.append(e)
+        return (sequence,)
+
+
 # ---------- Registration ----------
 
 NODE_CLASS_MAPPINGS = {
@@ -622,6 +693,7 @@ NODE_CLASS_MAPPINGS = {
     "GetFrameByIndex": GetFrameByIndex,
     "GetFrameRange": GetFrameRange,
     "VideoChunkPlanner": VideoChunkPlanner,
+    "ChainTextEmbeds": ChainTextEmbeds,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -632,4 +704,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GetFrameByIndex": "Get Frame By Index",
     "GetFrameRange": "Get Frame Range",
     "VideoChunkPlanner": "Video Chunk Planner",
+    "ChainTextEmbeds": "Chain Text Embeds 🔗",
 }
